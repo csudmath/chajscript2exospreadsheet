@@ -219,6 +219,9 @@ def main():
 
     workbook.close()
 
+def lines_to_list(lines):
+    return list(filter(lambda x: x != '', lines.split('\n')))
+
 profs = '''
 SCYJ
 CHAR
@@ -228,7 +231,16 @@ GALM
 MONC
 '''
 
-profs = list(filter(lambda x: x != '', profs.split('\n')))
+chapters = '''
+ensembles_nombres
+calcul_algebrique
+equations
+systemes
+'''
+
+profs = lines_to_list(profs)
+chapters = lines_to_list(chapters)
+
 
 if __name__ == '__main__':
     main()
