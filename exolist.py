@@ -57,6 +57,12 @@ class Counter(object):
     def incr(self):
         self.counter = self.updater(self.counter)
 
+    def get(self):
+        return self.counter
+
+    def is_empty(self):
+        return self.counter == self.initvalue
+
     def __str__(self):
         return str(self.counter)
 
@@ -78,7 +84,7 @@ def exolist(wb, ws, chapter):
         # level 0 is a dummy level representing nothing interesting
         Counter(0, lambda x: 0),
         Counter(0, lambda x: x+1),
-        Counter('a', lambda x: chr(ord(x)+1)),
+        Counter(chr(ord('a')-1), lambda x: chr(ord(x)+1)),
     ]
 
 
@@ -93,11 +99,11 @@ def exolist(wb, ws, chapter):
         subtitle = wb.add_format({'bold': True, 'font_size': 18})
 
         # largeur des colonnes
-        ws.set_column(0, 2, 5)
+        ws.set_column(0, 2, 8)
 
 
         ws.write(0, 0, "Exercices du chapitre ", title)
-        ws.write(0, 4, chapter, subtitle)
+        ws.write(0, 5, chapter, subtitle)
         ws.write(1, 0, "No Exo", header)
         ws.write(1, 1, "item", header)
         ws.write(1, 2, "sous-item", header)
@@ -108,10 +114,17 @@ def exolist(wb, ws, chapter):
 
 
         for lineno, line in enumerate(fd):
+
             line = line.strip()
+
             if begin_ex(line):
                 in_exo = True
                 num_level = 0
+                max_level = 0
+
+                # handle void enums (\begin{enumerate}[])
+                void_enum = False
+
                 # capture the exercise number
                 label = get_ex_label(line, lineno, chapter)
 
@@ -121,6 +134,7 @@ def exolist(wb, ws, chapter):
                 ws.write(xlsline, 0, str(label))
                 ws.write(xlsline, 1, "", bg_black)
                 ws.write(xlsline, 2, "", bg_black)
+                exoline = xlsline
                 xlsline += 1
 
             elif end_ex(line):
@@ -130,27 +144,52 @@ def exolist(wb, ws, chapter):
                 else:
                     exos += {label : ex_structure}
 
+                if max_level > 0:
+                    for i in range(len(profs)):
+                        ws.write(exoline, 3+i, "max1", bg_black)
+
+                max_level = 0
+
             elif begin_sol(line):
                 in_sol = True
 
             elif end_sol(line):
                 in_sol = False
 
-            elif begin_enum(line) and in_exo:
+            elif begin_enum(line) and in_exo and not in_sol:
+                if line.startswith(r"\begin{enumerate}[]"):
+                    void_enum = True
+
                 if num_level > 1:
                     print("Trop de niveaux d'indentation : ", num_level, "line", lineno)
                     print(latexfile)
 
-                num_level += 1
+                if num_level == 1:
+                    level1line = xlsline-1
 
-            elif end_enum(line) and in_exo:
+                num_level += 1
+                max_level += 1
+
+            elif end_enum(line) and in_exo and not in_sol:
+
+                # on sort d'un enum du 1er niveau et il y a
+                if num_level == 1 and max_level > 1 and not void_enum:
+                    print(lineno, line)
+                    for i in range(len(profs)):
+                        try:
+                            ws.write(level1line, 3+i, "max2 "+label+"#"+ str(lineno) , bg_black)
+                        except:
+                            print("souci en traitant la ligne no", chapter, ":", lineno, ":", line)
+
                 if num_level > 0:
                     counters[num_level].init()
                     num_level -= 1
                 else:
                     raise NumLevelError
 
-            elif enum_item(line) and in_exo and not in_sol:
+                if void_enum: void_enum = False
+
+            elif enum_item(line) and in_exo and not in_sol and not void_enum:
                 counters[num_level].incr()
                 ws.write(xlsline, num_level, str(counters[num_level]))
                 ws.write(xlsline, 0, "", bg_black)
